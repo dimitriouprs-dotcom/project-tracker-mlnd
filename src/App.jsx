@@ -1,4 +1,4 @@
-
+3
 import React, { useMemo, useRef, useState } from 'react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -133,12 +133,15 @@ export default function App(){
 
   // Reports
   const exportPDF = async () => {
+  if (!perms.exportReports) return;
+
   const pr = activeProject;
   const doc = new jsPDF({ unit: "pt" });
 
+  // Φόρτωση logo από /public/logo.png χωρίς cache
   let logoData = null;
   try {
-    const res = await fetch("/logo.png");
+    const res = await fetch("/logo.png", { cache: "no-store" });
     if (res.ok) {
       const blob = await res.blob();
       logoData = await new Promise((resolve) => {
@@ -147,13 +150,14 @@ export default function App(){
         reader.readAsDataURL(blob);
       });
     }
-  } catch (e) {}
+  } catch (_) {}
 
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
 
+  // Header σε κάθε σελίδα
   const header = () => {
-    if (logoData) doc.addImage(logoData, "PNG", 40, 24, 110, 40);
+    if (logoData) doc.addImage(logoData, "PNG", 40, 24, 110, 40); // λογότυπο
     doc.setFontSize(14);
     doc.text("PROJECT REPORT", 160, 44);
     doc.setFontSize(10);
@@ -164,21 +168,33 @@ export default function App(){
     doc.line(40, 100, pageW - 40, 100);
   };
 
+  // Footer σε κάθε σελίδα
   const footer = (pageNumber) => {
     doc.setLineWidth(0.5);
     doc.line(40, pageH - 50, pageW - 40, pageH - 50);
     doc.setFontSize(9);
-    doc.text("Company: Mallionda Engineering • info@mallionda.gr", 40, pageH - 36);
+    doc.text("Mallionda Engineering • info@mallionda.gr", 40, pageH - 36);
     doc.text(`Page ${pageNumber}`, pageW - 80, pageH - 36);
   };
 
+  // Δεδομένα πίνακα (με τα τρέχοντα φίλτρα)
   const rows = shownPunch.map((r, i) => [
-    i + 1, r.tag, r.system, r.location || "-",
-    r.lineNo || "-", r.jointType || "-", r.discipline,
-    r.priority, r.status, r.assignee || "-", r.due || "-", r.description
+    i + 1,
+    r.tag,
+    r.system,
+    r.location || "-",
+    r.lineNo || "-",
+    r.jointType || "-",
+    r.discipline,
+    r.priority,
+    r.status,
+    r.assignee || "-",
+    r.due || "-",
+    r.description || ""
   ]);
 
-  doc.autoTable({
+  // Πίνακας (ESM helper: autoTable(doc, options))
+  autoTable(doc, {
     startY: 120,
     head: [[
       "#","Tag","System","Loc","Line","Joint","Disc",
@@ -186,7 +202,7 @@ export default function App(){
     ]],
     body: rows,
     styles: { fontSize: 8, cellPadding: 3 },
-    headStyles: { fillColor: [230,230,230] },
+    headStyles: { fillColor: [230, 230, 230] },
     columnStyles: { 11: { cellWidth: 180 } },
     margin: { left: 40, right: 40, top: 100, bottom: 70 },
     didDrawPage: () => {
@@ -198,14 +214,6 @@ export default function App(){
 
   doc.save(`${pr.code}-report.pdf`);
 };
-    });
-    const y = doc.lastAutoTable?.finalY || 120;
-    doc.setFontSize(11);
-    doc.text('Prepared by: ______________________    Reviewed by: ______________________',40,y+40);
-    doc.text('Date: _____________',40,y+60);
-    doc.save(`${pr.code}-report.pdf`);
-  };
-
   const exportCSV=()=>{
     if(!perms.exportReports) return;
     const pr=activeProject; const rows=shownPunch;
