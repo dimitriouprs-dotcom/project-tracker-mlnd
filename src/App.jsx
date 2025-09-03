@@ -132,23 +132,72 @@ export default function App(){
   };
 
   // Reports
-  const exportPDF=()=>{
-    if(!perms.exportReports) return;
-    const pr=activeProject; const doc=new jsPDF({unit:'pt'});
-    doc.setFontSize(18); doc.text('PROJECT REPORT',40,40);
-    doc.setFontSize(11);
-    doc.text(`Project: ${pr.name} (${pr.code})`,40,60);
-    doc.text(`Category: ${pr.category}    Site: ${pr.site}`,40,75);
-    doc.text(`Generated: ${new Date().toLocaleString()}`,40,90);
-    const rows=shownPunch.map((r,i)=>[i+1,r.tag,r.system,r.location||'-',r.lineNo||'-',r.jointType||'-',r.discipline,r.priority,r.status,r.assignee||'-',r.due||'-',r.description]);
-    doc.autoTable({
-      startY:110,
-      head:[["#","Tag","System","Loc","Line","Joint","Disc","Prio","Status","Assignee","Due","Description"]],
-      body:rows,
-      styles:{fontSize:8, cellPadding:3},
-      headStyles:{fillColor:[230,230,230]},
-      columnStyles:{11:{cellWidth:180}},
-      margin:{left:40, right:40}
+  const exportPDF = async () => {
+  const pr = activeProject;
+  const doc = new jsPDF({ unit: "pt" });
+
+  let logoData = null;
+  try {
+    const res = await fetch("/logo.png");
+    if (res.ok) {
+      const blob = await res.blob();
+      logoData = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch (e) {}
+
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  const header = () => {
+    if (logoData) doc.addImage(logoData, "PNG", 40, 24, 110, 40);
+    doc.setFontSize(14);
+    doc.text("PROJECT REPORT", 160, 44);
+    doc.setFontSize(10);
+    doc.text(`Project: ${pr.name} (${pr.code})`, 160, 60);
+    doc.text(`Category: ${pr.category}    Site: ${pr.site}`, 160, 74);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 160, 88);
+    doc.setLineWidth(0.5);
+    doc.line(40, 100, pageW - 40, 100);
+  };
+
+  const footer = (pageNumber) => {
+    doc.setLineWidth(0.5);
+    doc.line(40, pageH - 50, pageW - 40, pageH - 50);
+    doc.setFontSize(9);
+    doc.text("Company: Mallionda Engineering • info@mallionda.gr", 40, pageH - 36);
+    doc.text(`Page ${pageNumber}`, pageW - 80, pageH - 36);
+  };
+
+  const rows = shownPunch.map((r, i) => [
+    i + 1, r.tag, r.system, r.location || "-",
+    r.lineNo || "-", r.jointType || "-", r.discipline,
+    r.priority, r.status, r.assignee || "-", r.due || "-", r.description
+  ]);
+
+  doc.autoTable({
+    startY: 120,
+    head: [[
+      "#","Tag","System","Loc","Line","Joint","Disc",
+      "Prio","Status","Assignee","Due","Description"
+    ]],
+    body: rows,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [230,230,230] },
+    columnStyles: { 11: { cellWidth: 180 } },
+    margin: { left: 40, right: 40, top: 100, bottom: 70 },
+    didDrawPage: () => {
+      header();
+      const pageNumber = doc.internal.getNumberOfPages();
+      footer(pageNumber);
+    },
+  });
+
+  doc.save(`${pr.code}-report.pdf`);
+};
     });
     const y = doc.lastAutoTable?.finalY || 120;
     doc.setFontSize(11);
